@@ -1,7 +1,7 @@
 import numpy as np
 from math import gcd
 from typing import List, Tuple
-from time import time
+import time
 import math
 
 
@@ -12,21 +12,45 @@ def square(number: float) -> float:
 def solve_equation(y,z):
     return np.sqrt(square(z)-square(y))
 
-def solve_slow(upper_limit):
-    solutions=[]
-    for z in range(1,upper_limit+1):
-        for y in range(1,z-1):
-            x= solve_equation(y,z)
-            if x.is_integer():
-                solutions.append([int(x),y,z])
-    return (solutions)
+def _to_tuples(triples):
+    """Ensure output is list of tuples with plain Python ints."""
+    return [(int(x), int(y), int(z)) for x, y, z in triples]
 
-def solve_chatGPT(limit: int) -> List[Tuple[int, int, int]]:
-    out: List[Tuple[int, int, int]] = []
+
+# ---- 1) Slow scan (integer math; no floats) ----
+def solve_slow(limit: int):
+    solutions = []
+    for z in range(1, limit + 1):
+        z2 = z * z
+        for y in range(1, z):
+            s = z2 - y * y
+            if s <= 0:
+                continue
+            x = math.isqrt(s)
+            if x * x == s:
+                solutions.append((x, y, z))
+    return _to_tuples(solutions)
+
+
+def solve_slow(limit: int):
+    solutions = []
+    for z in range(1, limit + 1):
+        z2 = z * z
+        for y in range(1, z):
+            s = z2 - y * y
+            if s <= 0:
+                continue
+            x = math.isqrt(s)
+            if x * x == s:
+                solutions.append((x, y, z))
+    return _to_tuples(solutions)
+
+
+def solve_chatGPT(limit: int):
+    out = []
     m = 2
     while True:
-        z0 = m*m + 1  # smallest n=1 gives this z
-        if z0 > limit:
+        if m*m + 1 > limit:
             break
         for n in range(1, m):
             if ((m - n) & 1) == 0 or gcd(m, n) != 1:
@@ -36,80 +60,64 @@ def solve_chatGPT(limit: int) -> List[Tuple[int, int, int]]:
             c = m*m + n*n
             if c > limit:
                 break
-            # add all multiples k*(a,b,c) with c*k <= limit
             k = 1
             while k * c <= limit:
-                x, y, z = k*a, k*b, k*c
-                x=int(x)
-                y=int(y)
-                z=int(z)
-                # include both leg orders (x,y) and (y,x) if you need all pairs
-                out.append(tuple(sorted((x, y)) + [z]))  # keep (x<=y) for consistency
+                out.append((k*a, k*b, k*c))
                 k += 1
         m += 1
-    # make unique & sorted
-    out = sorted(set(out))
-    return out
+    return _to_tuples(out)
 
-def solve_chatGPT_jonas(upper_z):
+
+def solve_chatGPT_jonas(limit: int):
     solutions = []
-    for z in range(1, upper_z):
+    for z in range(1, limit + 1):
         z2 = z * z
         for x in range(1, z):
             y2 = z2 - x * x
-            y = int(math.isqrt(y2))
-            if y >= x and y < z and y * y == y2:
+            if y2 <= 0:
+                continue
+            y = math.isqrt(y2)
+            if y * y == y2:
                 solutions.append((x, y, z))
-    return solutions
+    return _to_tuples(solutions)
 
 
-def solve_meshgrid(upper_limit: int):
-    # Create 2D grids for y and z
-    y_vals = np.arange(1,upper_limit)
-    z_vals = np.arange(1,upper_limit+1)
+def solve_meshgrid(limit: int):
+    y_vals = np.arange(1, limit)
+    z_vals = np.arange(1, limit + 1)
     Y, Z = np.meshgrid(y_vals, z_vals, indexing="ij")
-
-    # Compute candidate x^2 = z^2 - y^2
     X2 = Z**2 - Y**2
-
-    # Mask out negatives (invalid)
-    mask = X2 >= 1
-
-    # Compute integer square roots where valid
-    X = np.sqrt(X2, where=mask, out=np.zeros_like(X2, dtype=float))
-
-    # Mask those that are perfect squares
+    mask = X2 > 0
+    X = np.zeros_like(X2, dtype=float)
+    np.sqrt(X2, where=mask, out=X)
     mask &= (X == np.floor(X))
-
-    # Extract valid integer triples
     x_vals = X[mask].astype(int)
-    y_vals = Y[mask]
-    z_vals = Z[mask]
+    y_out = Y[mask].astype(int)
+    z_out = Z[mask].astype(int)
+    triples = zip(x_vals, y_out, z_out)
+    return _to_tuples(triples)
 
-    return list(zip(x_vals, y_vals, z_vals))
 
+
+def benchmark(upper_limit: int):
+    solvers = [
+        ("slow", solve_slow),
+        ("chatGPT", solve_chatGPT),
+        ("meshgrid", solve_meshgrid),
+        ("chatGPT_jonas", solve_chatGPT_jonas),
+    ]
+
+    for name, func in solvers:
+        start_time = time.time()
+        solution = func(upper_limit)
+        elapsed = time.time() - start_time
+        print(f"{name} time: {elapsed:.4f} seconds")
+        # Uncomment if you also want to inspect solutions
+        print(f"{name} solution: {solution}")
 
 if __name__ == "__main__":
-    upper_limit  = 2000
-    start_time=time()
-    solution=solve_slow(upper_limit)
-    #print("slow solution: ", solution)
-    print("slow time: ", time()-start_time)
-
-    start_time=time()
-    solution=solve_chatGPT(upper_limit)
-    #print("chatGPT solution: ", solution)
-    print("chatGPT time: ", time()-start_time)
-
-    start_time=time()
-    solution=solve_meshgrid(upper_limit)                           
-    #print("meshgrid solution: ", solution)
-    print("meshgrid time: ", time()-start_time)
-
-    start_time=time()
-    solution=solve_chatGPT_jonas(upper_limit)                           
-    
-    print("chatGPT_jonas time: ", time()-start_time)
+    upper_limit = 5
+    benchmark(upper_limit)
 
 
   
