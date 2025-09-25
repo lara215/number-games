@@ -2,6 +2,7 @@ import numpy as np
 from math import gcd
 from typing import List, Tuple
 from time import time
+import math
 
 
 def square(number: float) -> float:
@@ -50,6 +51,17 @@ def solve_chatGPT(limit: int) -> List[Tuple[int, int, int]]:
     out = sorted(set(out))
     return out
 
+def solve_chatGPT_jonas(upper_z):
+    solutions = []
+    for z in range(1, upper_z):
+        z2 = z * z
+        for x in range(1, z):
+            y2 = z2 - x * x
+            y = int(math.isqrt(y2))
+            if y >= x and y < z and y * y == y2:
+                solutions.append((x, y, z))
+    return solutions
+
 
 def solve_meshgrid(upper_limit: int):
     # Create 2D grids for y and z
@@ -78,7 +90,7 @@ def solve_meshgrid(upper_limit: int):
 
 
 if __name__ == "__main__":
-    upper_limit  = 200
+    upper_limit  = 2000
     start_time=time()
     solution=solve_slow(upper_limit)
     #print("slow solution: ", solution)
@@ -93,6 +105,11 @@ if __name__ == "__main__":
     solution=solve_meshgrid(upper_limit)                           
     #print("meshgrid solution: ", solution)
     print("meshgrid time: ", time()-start_time)
+
+    start_time=time()
+    solution=solve_chatGPT_jonas(upper_limit)                           
+    
+    print("chatGPT_jonas time: ", time()-start_time)
 
 
   
