@@ -1,123 +1,181 @@
-import numpy as np
-from math import gcd
-from typing import List, Tuple
-import time
 import math
+import time
+from math import gcd, isqrt
+from typing import List, Tuple
+import numpy as np
 
 
+# ---------- Helpers ----------
 def square(number: float) -> float:
     """Return the square of a given number."""
     return number * number
 
-def solve_equation(y,z):
-    return np.sqrt(square(z)-square(y))
 
-def _to_tuples(triples):
-    """Ensure output is list of tuples with plain Python ints."""
-    return [(int(x), int(y), int(z)) for x, y, z in triples]
+def solve_equation(leg: float, hypotenuse: float) -> float:
+    """Compute sqrt(hypotenuse^2 - leg^2). Assumes hypotenuse^2 >= leg^2."""
+    return np.sqrt(square(hypotenuse) - square(leg))
 
 
-# ---- 1) Slow scan (integer math; no floats) ----
-def solve_slow(limit: int):
+def _to_tuples(triples) -> List[Tuple[int, int, int]]:
+    """Convert an iterable of triples into a list of plain integer tuples."""
+    return [(int(a), int(b), int(c)) for a, b, c in triples]
+
+
+# ---------- Solvers ----------
+def solve_slow(limit: int) -> List[Tuple[int, int, int]]:
+    """
+    Brute-force solver:
+    Loop over all possible hypotenuses (c) and legs (a, b),
+    check if a^2 + b^2 = c^2.
+    """
     solutions = []
-    for z in range(1, limit + 1):
-        z2 = z * z
-        for y in range(1, z):
-            s = z2 - y * y
-            if s <= 0:
+    for hypotenuse in range(1, limit + 1):
+        c2 = hypotenuse * hypotenuse
+        for leg_b in range(1, hypotenuse):
+            remainder = c2 - leg_b * leg_b
+            if remainder <= 0:
                 continue
-            x = math.isqrt(s)
-            if x * x == s:
-                solutions.append((x, y, z))
+            leg_a = isqrt(remainder)
+            if leg_a * leg_a == remainder:
+                solutions.append((leg_a, leg_b, hypotenuse))
     return _to_tuples(solutions)
 
 
-def solve_slow(limit: int):
-    solutions = []
-    for z in range(1, limit + 1):
-        z2 = z * z
-        for y in range(1, z):
-            s = z2 - y * y
-            if s <= 0:
-                continue
-            x = math.isqrt(s)
-            if x * x == s:
-                solutions.append((x, y, z))
-    return _to_tuples(solutions)
-
-
-def solve_chatGPT(limit: int):
-    out = []
+def solve_chatGPT(limit: int) -> List[Tuple[int, int, int]]:
+    """
+    Generate primitive Pythagorean triples using Euclid's formula:
+        a = m^2 - n^2, b = 2mn, c = m^2 + n^2
+    Then scale them by k until the limit is reached.
+    """
+    triples = []
     m = 2
     while True:
-        if m*m + 1 > limit:
+        if m * m + 1 > limit:
             break
         for n in range(1, m):
+            # Must be coprime and one even/one odd
             if ((m - n) & 1) == 0 or gcd(m, n) != 1:
                 continue
-            a = m*m - n*n
-            b = 2*m*n
-            c = m*m + n*n
+            a = m * m - n * n
+            b = 2 * m * n
+            c = m * m + n * n
             if c > limit:
                 break
             k = 1
             while k * c <= limit:
-                out.append((k*a, k*b, k*c))
+                triples.append((k * a, k * b, k * c))
                 k += 1
         m += 1
-    return _to_tuples(out)
-
-
-def solve_chatGPT_jonas(limit: int):
-    solutions = []
-    for z in range(1, limit + 1):
-        z2 = z * z
-        for x in range(1, z):
-            y2 = z2 - x * x
-            if y2 <= 0:
-                continue
-            y = math.isqrt(y2)
-            if y * y == y2:
-                solutions.append((x, y, z))
-    return _to_tuples(solutions)
-
-
-def solve_meshgrid(limit: int):
-    y_vals = np.arange(1, limit)
-    z_vals = np.arange(1, limit + 1)
-    Y, Z = np.meshgrid(y_vals, z_vals, indexing="ij")
-    X2 = Z**2 - Y**2
-    mask = X2 > 0
-    X = np.zeros_like(X2, dtype=float)
-    np.sqrt(X2, where=mask, out=X)
-    mask &= (X == np.floor(X))
-    x_vals = X[mask].astype(int)
-    y_out = Y[mask].astype(int)
-    z_out = Z[mask].astype(int)
-    triples = zip(x_vals, y_out, z_out)
     return _to_tuples(triples)
 
 
+def solve_chatGPT_jonas(limit: int) -> List[Tuple[int, int, int]]:
+    """
+    Alternate brute-force:
+    Loop over hypotenuse (c) and one leg (a),
+    derive the other leg (b) using integer square root.
+    """
+    solutions = []
+    for hypotenuse in range(1, limit + 1):
+        c2 = hypotenuse * hypotenuse
+        for leg_a in range(1, hypotenuse):
+            b2 = c2 - leg_a * leg_a
+            if b2 <= 0:
+                continue
+            leg_b = isqrt(b2)
+            if leg_b * leg_b == b2:
+                solutions.append((leg_a, leg_b, hypotenuse))
+    return _to_tuples(solutions)
 
-def benchmark(upper_limit: int):
+
+def solve_meshgrid(limit: int) -> List[Tuple[int, int, int]]:
+    """
+    Vectorized solver using NumPy:
+    Create a grid of possible legs (b) and hypotenuses (c),
+    compute a^2 = c^2 - b^2, check which are perfect squares.
+    """
+    leg_b_values = np.arange(1, limit)
+    hypotenuse_values = np.arange(1, limit + 1)
+
+    # Create 2D arrays of b and c values
+    B, C = np.meshgrid(leg_b_values, hypotenuse_values, indexing="ij")
+
+    # Compute a^2 = c^2 - b^2
+    A_squared = C**2 - B**2
+
+    # Mask invalid (negative or zero) values
+    mask = A_squared > 0
+
+    # Compute a only where valid
+    A = np.zeros_like(A_squared, dtype=float)
+    np.sqrt(A_squared, where=mask, out=A)
+
+    # Keep only integer solutions
+    mask &= (A == np.floor(A))
+
+    # Extract solutions
+    leg_a_values = A[mask].astype(int)
+    leg_b_out = B[mask].astype(int)
+    hypotenuse_out = C[mask].astype(int)
+
+    triples = zip(leg_a_values, leg_b_out, hypotenuse_out)
+    return _to_tuples(triples)
+
+def add_squares(list1: np.ndarray, list2: np.ndarray) -> dict[tuple, int]:
+    dictionary ={}
+    for x1 in list1:
+        for x2 in list2:
+            dictionary[(x1,x2)]=x1+x2
+
+    return dictionary
+
+def solve_savling_list(limit: int) -> List[Tuple[int,int,int]]:
+    numbers=np.arange(1,limit+1)
+    square_numbers=numbers**2
+    summed_squares=add_squares(square_numbers,square_numbers)
+    #print(summed_squares)
+    results=[]
+    for key,value in summed_squares.items():
+        if value in square_numbers:
+          results.append((key[0]**0.5, key[1]**0.5, value**0.5))
+            
+                    
+                 
+    return(results)
+
+
+# ---------- Benchmark ----------
+def benchmark(upper_limit: int, show_solutions: bool = False) -> None:
+    """Run each solver, measure execution time, and optionally print solutions."""
     solvers = [
-        ("slow", solve_slow),
-        ("chatGPT", solve_chatGPT),
-        ("meshgrid", solve_meshgrid),
-        ("chatGPT_jonas", solve_chatGPT_jonas),
+        ("Brute-force (slow)", solve_slow),
+        ("Euclid's formula", solve_chatGPT),
+        ("Vectorized meshgrid", solve_meshgrid),
+        ("Brute-force (Jonas)", solve_chatGPT_jonas),
+        ("saving squares", solve_savling_list)
     ]
 
-    for name, func in solvers:
+    for solver_name, solver_func in solvers:
         start_time = time.time()
-        solution = func(upper_limit)
+        solutions = solver_func(upper_limit)
         elapsed = time.time() - start_time
-        print(f"{name} time: {elapsed:.4f} seconds")
-        # Uncomment if you also want to inspect solutions
-        print(f"{name} solution: {solution}")
+
+        print(f"{solver_name:>20}  time: {elapsed:.6f} s  (found {len(solutions)} triples)")
+        if show_solutions:
+            print(f"{solver_name:>20}  solutions: {solutions}")
+
+
+# ---------- Main ----------
+def main():
+    # Set parameters here
+    upper_limit = 200       # maximum hypotenuse to consider
+    show_solutions = False   # set True to print all triples
+
+    benchmark(upper_limit, show_solutions)
+
 
 if __name__ == "__main__":
-    upper_limit = 5
-    benchmark(upper_limit)
+    main()
 
 
   
