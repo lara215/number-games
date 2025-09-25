@@ -130,6 +130,15 @@ def add_squares(list1: np.ndarray, list2: np.ndarray) -> dict[tuple, int]:
     return dictionary
 
 def solve_savling_list(limit: int) -> List[Tuple[int,int,int]]:
+    """
+    find the soltuions to the pythagorean triplet problem using a dictionary
+
+    parameter:
+    limit (int): upper limit of the hypothenuses
+
+    return:
+    List[Tuple[int,int,int]]: list with all tuples of (leg_a, leg_b, hypothenuses) that solve the pythagorean equation
+    """
     numbers=np.arange(1,limit+1)
     square_numbers=numbers**2
     summed_squares=add_squares(square_numbers,square_numbers)
@@ -139,8 +148,7 @@ def solve_savling_list(limit: int) -> List[Tuple[int,int,int]]:
         if value in square_numbers:
           results.append((key[0]**0.5, key[1]**0.5, value**0.5))
             
-                    
-                 
+                                     
     return(results)
 
 
